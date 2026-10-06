@@ -89,3 +89,84 @@ validations or hidden rows/columns to preserve.
 
 Two cosmetic openpyxl round-trip artefacts are cleaned up in `tidy_package()`
 (a stray `style="N"` on `<col>` elements, and the master's `<dimension>` hint).
+
+---
+
+# Second batch — 2023-24 and SY A 24-25 ODD
+
+| | |
+|---|---|
+| **Originals (untouched, also in `backup/`)** | `2023-24 (1).xlsx`, `SY A 24-25 ODD (2).xlsx` |
+| **Deliverables** | `2023-24 (1)_Formatted.xlsx`, `SY A 24-25 ODD (2)_Formatted.xlsx` |
+| **Build script** | `format_new_files.py` (uses the shared `report_format.py`) |
+| **Designation source** | `designations.py` (reads the 2025-26 workbook only) |
+| **QC script** | `verify_new_files.py` |
+
+```bash
+python3 format_new_files.py     # rebuilds both deliverables
+python3 verify_new_files.py     # runs every quality-control check
+python3 designations.py         # prints the faculty -> designation mapping
+```
+
+Six sheets were rebuilt with the same design system, read from the 2025-26
+`summative` master.
+
+| File | Sheet | Rows | Columns |
+|---|---|---:|---|
+| `2023-24 (1)` | `Formative` | 48 | Sr. No. / Faculty Name / **Designation** / Semester-Group / Subject / Attendees / Feedback Percentage |
+| `2023-24 (1)` | `Summative` | 49 | same |
+| `SY A 24-25 ODD (2)` | `2024-25 Sem-I Formative` | 71 | Sr. No. / Faculty Name / **Designation** / Sem-Class / Course / Performance |
+| `SY A 24-25 ODD (2)` | `Sem-I Summative` | 70 | Faculty Name / **Designation** / Sem-Class / Course / Performance |
+| `SY A 24-25 ODD (2)` | `Sem-II Formative` | 133 | Sr. No. / Faculty Name / **Designation** / Sem-Class / Course / Feedback / Performance |
+| `SY A 24-25 ODD (2)` | `Sem-II Summative` | 133 | Faculty Name / **Designation** / Sem-Class / Course / Performance |
+
+## All highlighting removed
+
+Every fill was cleared — 0 filled cells remain in either file. The green
+(`FF92D050`) and yellow (`FFFF00`) blocks that were paste artefacts in the
+originals are gone; the sheets are plain white with the master's thin box
+borders. (The 34 unused fill *definitions* left in `styles.xml` are inherited
+dead entries from the source files — no cell or row references them.)
+
+## Designations
+
+A `Designation` column was added next to Faculty Name on all six sheets,
+populated **only** from the 2025-26 workbook (`summative` A/B and the two
+Sem-I sheets). Nothing was inferred.
+
+* 37 faculty resolved to Assistant Professor / Associate Professor / Professor.
+* 3 faculty had **conflicting** designations in the source (different
+  designations in Sem-I vs Sem-II, or under a variant spelling). Per your
+  instruction these were left **blank** rather than guessed:
+  * Dr. MANDAR SONTAKKE / Dr.M.D.Sontakke — Assistant (9 rows) vs Associate (2)
+  * Atul Nigavekar / Prof. Atul Nigavekar — Assistant (6) vs Associate (2)
+  * Dr. PRITAM NIKAM / Dr.Dr.P.B.Nikam — Associate (Sem-I) vs Assistant (Sem-II)
+* 5 faculty appear in **no** source file and were left **blank**:
+  Megha Thombare, NITIN SAMBRE, PARESH SAWANT, SANGEETA CHOUGULE,
+  Vishwala Raut Desai.
+
+Names are matched on surname + first initial after stripping honorifics
+(`Dr.`, `Prof.`) and punctuation, so `Dr.A.M.Pol` correctly matches
+`AJAY POL` and `Dr.M.D.Sontakke` matches `MANDAR SONTAKKE`.
+
+## Other judgement calls
+
+* The `Feedback` column that merely repeated the sheet's own AY code was
+  dropped and promoted into the row-3 title — except on `Sem-II Formative`,
+  where the column holds two genuinely different values and so was kept.
+* The sparse `Sr. No.` column was kept, except on `Sem-I Summative` where it
+  was 100 % empty.
+* On `Sem-II Summative` the crossed header labels were corrected to
+  Faculty Name / Sem-Class / Course / Performance (column B holds a class such
+  as `SEM-II-Final Year-A`; column C holds course names).
+* The two live `=ROUNDUP()` formulas were preserved. Adding the Designation
+  column shifted Performance from D to E, so they were re-pointed with Excel's
+  own offset logic: `F136 =ROUNDUP(E136,0)` and `F137 =ROUNDUP(E137,0)`.
+
+## Verification
+
+`verify_new_files.py` runs 8 groups of checks and all pass: every value
+identical to the original (2 547 values across the six sheets), every dropped
+column proven constant or empty, no invented designation, zero filled cells,
+master design tokens reproduced on every sheet, both formulas intact and
+re-pointed, no clipped or wasteful column, and clean package hygiene.
