@@ -25,25 +25,33 @@ DESIGN_SRC = os.path.join(HERE, "Summary AiFormative_and_Summative_Feedback_Repo
 MASTER25 = os.path.join(HERE, "Summary_AiFormative_and_Summative_Feedback_Report_2025-2026_Formatted.xlsx")
 
 # sheet -> (src file, out file, rows, cols kept from src, name col in src,
-#            dropped cols, whether the Designation column was added)
+#            cols dropped as redundant, cols dropped on request,
+#            whether the Designation column was added, whether Sr. No. is kept)
+#
+# Both optional columns are now gone from the 24-25 file: Designation (unreliable
+# for a year that old) and the sparse Sr. No. The 2023-24 file keeps Sr. No.
 PLAN = [
-    dict(desig=False, sheet="Formative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
-         rows=(2, 49), cols=[1, 2, 3, 4, 6, 7], name_col=2, dropped=[5],
+    dict(desig=False, srno=True, sheet="Formative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
+         rows=(2, 49), cols=[1, 2, 3, 4, 6, 7], name_col=2, dropped=[5], by_request=[],
          title="AY_2023_24_Sem_II_Formative"),
-    dict(desig=False, sheet="Summative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
-         rows=(1, 49), cols=[1, 2, 3, 4, 6, 7], name_col=2, dropped=[5],
+    dict(desig=False, srno=True, sheet="Summative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
+         rows=(1, 49), cols=[1, 2, 3, 4, 6, 7], name_col=2, dropped=[5], by_request=[],
          title="AY_2023_24_Sem_II_Summative"),
-    dict(desig=True, sheet="2024-25 Sem-I Formative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
-         rows=(1, 71), cols=[1, 2, 3, 4, 6], name_col=2, dropped=[5],
+    dict(desig=False, srno=False, sheet="2024-25 Sem-I Formative", src="SY A 24-25 ODD (2).xlsx",
+         out="SY A 24-25 ODD (2)_Formatted.xlsx",
+         rows=(1, 71), cols=[2, 3, 4, 6], name_col=2, dropped=[5], by_request=[1],
          title="AY_2024_25_Sem_I_Formative"),
-    dict(desig=True, sheet="Sem-I Summative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
-         rows=(1, 70), cols=[2, 3, 4, 6], name_col=2, dropped=[1, 5],
+    dict(desig=False, srno=False, sheet="Sem-I Summative", src="SY A 24-25 ODD (2).xlsx",
+         out="SY A 24-25 ODD (2)_Formatted.xlsx",
+         rows=(1, 70), cols=[2, 3, 4, 6], name_col=2, dropped=[1, 5], by_request=[],
          title="AY_2024_25_Sem_I_Summative"),
-    dict(desig=True, sheet="Sem-II Formative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
-         rows=(1, 133), cols=[1, 2, 3, 4, 5, 6], name_col=2, dropped=[],
+    dict(desig=False, srno=False, sheet="Sem-II Formative", src="SY A 24-25 ODD (2).xlsx",
+         out="SY A 24-25 ODD (2)_Formatted.xlsx",
+         rows=(1, 133), cols=[2, 3, 4, 5, 6], name_col=2, dropped=[], by_request=[1],
          title="AY_2024_25_Sem_II_Formative"),
-    dict(desig=True, sheet="Sem-II Summative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
-         rows=(5, 137), cols=[1, 2, 3, 4], name_col=1, dropped=[],
+    dict(desig=False, srno=False, sheet="Sem-II Summative", src="SY A 24-25 ODD (2).xlsx",
+         out="SY A 24-25 ODD (2)_Formatted.xlsx",
+         rows=(5, 137), cols=[1, 2, 3, 4], name_col=1, dropped=[], by_request=[],
          title="AY_2024_25_Sem_II_Summative"),
 ]
 
@@ -88,7 +96,7 @@ def main():
         for b in bad[:5]:
             print("        ", b)
 
-    print("\n[2] dropped columns really were constant / empty")
+    print("\n[2] columns dropped as redundant really were constant / empty")
     for p in PLAN:
         if not p["dropped"]:
             continue
@@ -100,6 +108,17 @@ def main():
             what = "constant %r" % vals.pop() if len(vals) == 1 else ("empty" if not vals else repr(vals))
             check(len(vals) <= 1, "%s: dropped column %s was %s" %
                   (p["sheet"], openpyxl.utils.get_column_letter(c), what))
+
+    print("\n[2b] columns dropped on request")
+    for p in PLAN:
+        for c in p["by_request"]:
+            src_ws = openpyxl.load_workbook(os.path.join(HERE, p["src"]))[p["sheet"]]
+            r0, r1 = p["rows"]
+            vals = [src_ws.cell(row=r, column=c).value for r in range(r0, r1 + 1)]
+            filled = [v for v in vals if v is not None]
+            note("%s: %s dropped on request - %d of %d rows were numbered (%s)"
+                 % (p["sheet"], openpyxl.utils.get_column_letter(c), len(filled),
+                    len(vals), "sparse" if len(filled) != len(vals) else "full"))
 
     print("\n[3] designations: filled only from the source, nothing invented")
     for p in PLAN:
@@ -123,18 +142,21 @@ def main():
         for w in wrong[:5]:
             print("        ", w)
 
-    print("\n[3b] the 2023-24 file has no Designation column at all")
+    print("\n[3b] no Designation column anywhere; Sr. No. only where asked for")
     for p in PLAN:
-        if p["desig"]:
-            continue
         out_ws = openpyxl.load_workbook(os.path.join(HERE, p["out"]))[p["sheet"]]
         labels = [out_ws.cell(row=4, column=c).value
                   for c in range(1, out_ws.max_column + 1)]
-        check("Designation" not in labels, "%s: header row has no Designation label %s"
-              % (p["sheet"], labels))
-        check(out_ws.max_column == len(p["cols"]),
-              "%s: %d columns, matching the %d kept from the source"
-              % (p["sheet"], out_ws.max_column, len(p["cols"])))
+        check("Designation" not in labels,
+              "%s: no Designation label %s" % (p["sheet"], labels))
+        check(("Sr. No." in labels) == p["srno"],
+              "%s: Sr. No. %s" % (p["sheet"], "kept" if p["srno"] else "dropped"))
+        check(labels[0] == ("Sr. No." if p["srno"] else "Faculty Name"),
+              "%s: first column is %r" % (p["sheet"], labels[0]))
+        # +1 column on Sem-II Summative, which also carries the two formulas
+        expected = len(p["cols"]) + (1 if p["sheet"] == "Sem-II Summative" else 0)
+        check(out_ws.max_column == expected,
+              "%s: %d columns (expected %d)" % (p["sheet"], out_ws.max_column, expected))
         # nothing designation-shaped survived in any row
         stray = [(c.coordinate, c.value) for row in out_ws.iter_rows() for c in row
                  if isinstance(c.value, str)
@@ -215,14 +237,14 @@ def main():
     ws = openpyxl.load_workbook(os.path.join(HERE, "SY A 24-25 ODD (2)_Formatted.xlsx"))["Sem-II Summative"]
     found = [(c.coordinate, c.value) for row in ws.iter_rows() for c in row
              if isinstance(c.value, str) and c.value.startswith("=")]
-    check(sorted(f for _, f in found) == ["=ROUNDUP(E136,0)", "=ROUNDUP(E137,0)"],
-          "formulas present and re-pointed to the new Performance column: %s" % sorted(found))
-    check(ws.cell(136, 5).value is not None and ws.cell(137, 5).value is not None,
-          "the cells the formulas read (E136/E137) hold the Performance values "
-          "(%.2f / %.2f -> %s / %s)" % (ws.cell(136, 5).value, ws.cell(137, 5).value,
-                                        round(ws.cell(136, 5).value + 0.4999),
-                                        round(ws.cell(137, 5).value + 0.4999)))
-    check(sorted(k for k, _ in found) == ["F136", "F137"], "formulas sit in F136/F137: %s"
+    check(sorted(f for _, f in found) == ["=ROUNDUP(D136,0)", "=ROUNDUP(D137,0)"],
+          "formulas present and pointing at the Performance column: %s" % sorted(found))
+    check(ws.cell(136, 4).value is not None and ws.cell(137, 4).value is not None,
+          "the cells the formulas read (D136/D137) hold the Performance values "
+          "(%.2f / %.2f -> %s / %s)" % (ws.cell(136, 4).value, ws.cell(137, 4).value,
+                                        round(ws.cell(136, 4).value + 0.4999),
+                                        round(ws.cell(137, 4).value + 0.4999)))
+    check(sorted(k for k, _ in found) == ["E136", "E137"], "formulas sit in E136/E137: %s"
           % sorted(k for k, _ in found))
 
     print("\n[7] nothing clipped, no dead whitespace")

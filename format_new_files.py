@@ -12,10 +12,13 @@ Design rules carried over from the 2025-26 deliverable:
   then a bold header row, then the data - all boxed in the master's thin border
 * the workbook's own logo, at the master's size and offset
 * all highlighting removed - every cell is left unfilled
-* a Designation column is injected after Faculty Name, populated from the
+* a Designation column may be injected after Faculty Name, populated from the
   2025-26 workbook and left blank wherever that source is missing or disagrees.
-  It is added per file - see WITH_DESIGNATION - because the 2023-24 data is two
-  academic years older than the source, so those designations are not reliable.
+  It is added per file - see WITH_DESIGNATION - and is off for both files: the
+  2023-24 data is two academic years older than the source, so its designations
+  would not be reliable.
+* the sparse Sr. No. column may be dropped - see DROP_SR_NO. On request it is
+  gone from the 24-25 file; the 2023-24 file keeps it.
 """
 
 import os
@@ -33,9 +36,18 @@ DESIGN_SRC = os.path.join(HERE, "Summary AiFormative_and_Summative_Feedback_Repo
 BACKUP_DIR = os.path.join(HERE, "backup")
 
 # Add the Designation column to this file? Keyed by source filename.
-# The 2023-24 reports are two academic years older than the only designation
-# source (the 2025-26 workbook), so their designations are left out.
+# Off for both: the 2023-24 reports are two academic years older than the only
+# designation source (the 2025-26 workbook), so those designations would not be
+# reliable, and the same column was then dropped from the 24-25 file on request.
 WITH_DESIGNATION = {
+    "2023-24 (1).xlsx":          False,
+    "SY A 24-25 ODD (2).xlsx":   False,
+}
+
+# Drop the sparse Sr. No. column? Keyed by source filename.
+# The Sr. No. column is only partly filled (41 of 71 rows on one sheet, 21 of
+# 133 on the other) and restarts mid-table, so it carries no usable ordering.
+DROP_SR_NO = {
     "2023-24 (1).xlsx":          False,
     "SY A 24-25 ODD (2).xlsx":   True,
 }
@@ -86,12 +98,14 @@ def headers_with(base, name_idx, with_desig):
 
 def numeric_idx(headers, names):
     """0-based indices of the given columns, looked up by header name."""
-    return {headers.index(n) for n in names}
+    return {headers.index(n) for n in names if n in headers}
 
 
 # --------------------------------------------------------------------------- #
 def build_file(src, out, design, lookup):
-    desig = WITH_DESIGNATION[os.path.basename(src)]
+    key = os.path.basename(src)
+    desig = WITH_DESIGNATION[key]
+    srno = DROP_SR_NO[key]
     logo_png = extract_logo(src) or extract_logo(DESIGN_SRC)
     wb = openpyxl.load_workbook(src)
     reseat_images(wb, logo_png)
@@ -136,11 +150,14 @@ def build_file(src, out, design, lookup):
         rows = (1, 71)
         title = lone_value(old, 5, rows)
         assert title == "AY_2024_25_Sem_I_Formative", title
-        data = grid(old, rows, [1, 2, 3, 4, 6])             # A B C D F  (E dropped)
+        keep = [2, 3, 4, 6] if srno else [1, 2, 3, 4, 6]    # A dropped with Sr. No.
+        data = grid(old, rows, keep)                        # E dropped either way
         if desig:
-            data = with_designation(data, 1, lookup)
-        headers = headers_with(["Sr. No.", "Faculty Name", "Sem/Class",
-                                "Course", "Performance"], 1, desig)
+            data = with_designation(data, 0 if srno else 1, lookup)
+        headers = headers_with(["Faculty Name", "Sem/Class", "Course", "Performance"]
+                               if srno else
+                               ["Sr. No.", "Faculty Name", "Sem/Class",
+                                "Course", "Performance"], 0 if srno else 1, desig)
         ws = fresh_sheet(wb, old)
         build_sheet(ws, design, title, headers, data,
                     numeric_cols=numeric_idx(headers, {"Sr. No.", "Performance"}),
@@ -166,11 +183,14 @@ def build_file(src, out, design, lookup):
         old = wb["Sem-II Formative"]
         rows = (1, 133)
         assert lone_value(old, 5, rows) is None, "col E was expected to vary"
-        data = grid(old, rows, [1, 2, 3, 4, 5, 6])          # A..F all kept
+        keep = [2, 3, 4, 5, 6] if srno else [1, 2, 3, 4, 5, 6]   # A = Sr. No.
+        data = grid(old, rows, keep)
         if desig:
-            data = with_designation(data, 1, lookup)
-        headers = headers_with(["Sr. No.", "Faculty Name", "Sem/Class",
-                                "Course", "Feedback", "Performance"], 1, desig)
+            data = with_designation(data, 0 if srno else 1, lookup)
+        headers = headers_with(["Faculty Name", "Sem/Class", "Course",
+                                "Feedback", "Performance"] if srno else
+                               ["Sr. No.", "Faculty Name", "Sem/Class", "Course",
+                                "Feedback", "Performance"], 0 if srno else 1, desig)
         ws = fresh_sheet(wb, old)
         # title follows the AY_..._Sem_X_Type convention of its sibling sheets
         build_sheet(ws, design, "AY_2024_25_Sem_II_Formative", headers, data,
@@ -193,11 +213,12 @@ def build_file(src, out, design, lookup):
             data = with_designation(data, 0, lookup)
         headers = headers_with(["Faculty Name", "Sem/Class", "Course",
                                 "Performance"], 0, desig)
-        # Performance sits at 0-based index 3 (column D) and shifts one right
-        # when the Designation column is added; the formulas reference it and
-        # sit in the column immediately after it.
+        # A=Faculty Name, B=Sem/Class, C=Course, D=Performance, so Performance
+        # is at 0-based index 3 and shifts one right when Designation is added.
+        # The formulas reference it and sit in the column right after it.
         perf = 3 + (1 if desig else 0)
-        extra = [(r - rows[0], perf + 1, shift_formula(f, 4, 1 if desig else 0), True)
+        shift = 1 if desig else 0
+        extra = [(r - rows[0], perf + 1, shift_formula(f, 4, shift), True)
                  for r, f in formulas]
         ws = fresh_sheet(wb, old)
         build_sheet(ws, design, title, headers, data,

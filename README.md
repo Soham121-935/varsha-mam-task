@@ -115,10 +115,10 @@ Six sheets were rebuilt with the same design system, read from the 2025-26
 |---|---|---:|---|
 | `2023-24 (1)` | `Formative` | 48 | Sr. No. / Faculty Name / Semester-Group / Subject / Attendees / Feedback Percentage |
 | `2023-24 (1)` | `Summative` | 49 | same |
-| `SY A 24-25 ODD (2)` | `2024-25 Sem-I Formative` | 71 | Sr. No. / Faculty Name / **Designation** / Sem-Class / Course / Performance |
-| `SY A 24-25 ODD (2)` | `Sem-I Summative` | 70 | Faculty Name / **Designation** / Sem-Class / Course / Performance |
-| `SY A 24-25 ODD (2)` | `Sem-II Formative` | 133 | Sr. No. / Faculty Name / **Designation** / Sem-Class / Course / Feedback / Performance |
-| `SY A 24-25 ODD (2)` | `Sem-II Summative` | 133 | Faculty Name / **Designation** / Sem-Class / Course / Performance |
+| `SY A 24-25 ODD (2)` | `2024-25 Sem-I Formative` | 71 | Faculty Name / Sem-Class / Course / Performance |
+| `SY A 24-25 ODD (2)` | `Sem-I Summative` | 70 | Faculty Name / Sem-Class / Course / Performance |
+| `SY A 24-25 ODD (2)` | `Sem-II Formative` | 133 | Faculty Name / Sem-Class / Course / Feedback / Performance |
+| `SY A 24-25 ODD (2)` | `Sem-II Summative` | 133 | Faculty Name / Sem-Class / Course / Performance |
 
 ## All highlighting removed
 
@@ -128,16 +128,17 @@ originals are gone; the sheets are plain white with the master's thin box
 borders. (The 34 unused fill *definitions* left in `styles.xml` are inherited
 dead entries from the source files — no cell or row references them.)
 
-## Designations
+## Designations — built, then removed
 
-A `Designation` column was added next to Faculty Name on the four
-**SY A 24-25 ODD** sheets, populated **only** from the 2025-26 workbook
-(`summative` A/B and the two Sem-I sheets). Nothing was inferred.
+`designations.py` builds a faculty -> designation lookup **only** from the
+2025-26 workbook (`summative` A/B and the two Sem-I sheets). Nothing is
+inferred. It resolved 37 faculty and left 8 deliberately blank.
 
-The **2023-24** file has **no Designation column at all** — its two sheets keep
-the six columns of the original. Those reports are two academic years older than
-the only designation source available, so the designations would not have been
-reliable. Toggle `WITH_DESIGNATION` in `format_new_files.py` to add it back.
+That column is now **switched off for both files** (`WITH_DESIGNATION` in
+`format_new_files.py`): the reports are one to two academic years older than
+the only source available, so the designations would not be reliable. The
+lookup and its logic are kept in the repo so the column can be restored in one
+edit. While it was in use, the resolved mapping was:
 
 * 37 faculty resolved to Assistant Professor / Associate Professor / Professor.
 * 3 faculty had **conflicting** designations in the source (different
@@ -159,19 +160,24 @@ Names are matched on surname + first initial after stripping honorifics
 * The `Feedback` column that merely repeated the sheet's own AY code was
   dropped and promoted into the row-3 title — except on `Sem-II Formative`,
   where the column holds two genuinely different values and so was kept.
-* The sparse `Sr. No.` column was kept, except on `Sem-I Summative` where it
-  was 100 % empty.
+* The sparse `Sr. No.` column is kept on the **2023-24** file and dropped from
+  **SY A 24-25 ODD** on request (`DROP_SR_NO` in `format_new_files.py`). On the
+  24-25 sheets it was only partly filled — 41 of 71 rows on one sheet, 21 of 133
+  on the other — and restarts mid-table, so it carried no usable ordering.
+  `Sem-I Summative` had already lost its own, which was 100 % empty.
 * On `Sem-II Summative` the crossed header labels were corrected to
   Faculty Name / Sem-Class / Course / Performance (column B holds a class such
   as `SEM-II-Final Year-A`; column C holds course names).
-* The two live `=ROUNDUP()` formulas were preserved. Adding the Designation
-  column shifted Performance from D to E, so they were re-pointed with Excel's
-  own offset logic: `F136 =ROUNDUP(E136,0)` and `F137 =ROUNDUP(E137,0)`.
+* The two live `=ROUNDUP()` formulas on `Sem-II Summative` were preserved. They
+  are re-pointed from Performance's real column index, so with the Designation
+  column gone they sit back in the source's own position:
+  `E136 =ROUNDUP(D136,0)` and `E137 =ROUNDUP(D137,0)`.
 
 ## Verification
 
 `verify_new_files.py` runs 8 groups of checks and all pass: every value
-identical to the original (2 547 values across the six sheets), every dropped
-column proven constant or empty, no invented designation, zero filled cells,
-master design tokens reproduced on every sheet, both formulas intact and
+identical to the original (2 343 values across the six sheets), every column
+dropped as redundant proven constant or empty, every column dropped on request
+reported, no Designation or Sr. No. column where it was removed, zero filled
+cells, master design tokens reproduced on every sheet, both formulas intact and
 re-pointed, no clipped or wasteful column, and clean package hygiene.
