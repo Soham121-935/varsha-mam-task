@@ -113,7 +113,7 @@ Six sheets were rebuilt with the same design system, read from the 2025-26
 
 | File | Sheet | Rows | Columns |
 |---|---|---:|---|
-| `2023-24 (1)` | `Formative` | 48 | Sr. No. / Faculty Name / **Designation** / Semester-Group / Subject / Attendees / Feedback Percentage |
+| `2023-24 (1)` | `Formative` | 48 | Sr. No. / Faculty Name / Semester-Group / Subject / Attendees / Feedback Percentage |
 | `2023-24 (1)` | `Summative` | 49 | same |
 | `SY A 24-25 ODD (2)` | `2024-25 Sem-I Formative` | 71 | Sr. No. / Faculty Name / **Designation** / Sem-Class / Course / Performance |
 | `SY A 24-25 ODD (2)` | `Sem-I Summative` | 70 | Faculty Name / **Designation** / Sem-Class / Course / Performance |
@@ -130,9 +130,14 @@ dead entries from the source files — no cell or row references them.)
 
 ## Designations
 
-A `Designation` column was added next to Faculty Name on all six sheets,
-populated **only** from the 2025-26 workbook (`summative` A/B and the two
-Sem-I sheets). Nothing was inferred.
+A `Designation` column was added next to Faculty Name on the four
+**SY A 24-25 ODD** sheets, populated **only** from the 2025-26 workbook
+(`summative` A/B and the two Sem-I sheets). Nothing was inferred.
+
+The **2023-24** file has **no Designation column at all** — its two sheets keep
+the six columns of the original. Those reports are two academic years older than
+the only designation source available, so the designations would not have been
+reliable. Toggle `WITH_DESIGNATION` in `format_new_files.py` to add it back.
 
 * 37 faculty resolved to Assistant Professor / Associate Professor / Professor.
 * 3 faculty had **conflicting** designations in the source (different

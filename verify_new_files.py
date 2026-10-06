@@ -24,24 +24,25 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DESIGN_SRC = os.path.join(HERE, "Summary AiFormative_and_Summative_Feedback_Report 2025-2026.xlsx")
 MASTER25 = os.path.join(HERE, "Summary_AiFormative_and_Summative_Feedback_Report_2025-2026_Formatted.xlsx")
 
-# sheet -> (src file, out file, rows, cols kept from src, name col in src, dropped cols)
+# sheet -> (src file, out file, rows, cols kept from src, name col in src,
+#            dropped cols, whether the Designation column was added)
 PLAN = [
-    dict(sheet="Formative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
+    dict(desig=False, sheet="Formative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
          rows=(2, 49), cols=[1, 2, 3, 4, 6, 7], name_col=2, dropped=[5],
          title="AY_2023_24_Sem_II_Formative"),
-    dict(sheet="Summative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
+    dict(desig=False, sheet="Summative", src="2023-24 (1).xlsx", out="2023-24 (1)_Formatted.xlsx",
          rows=(1, 49), cols=[1, 2, 3, 4, 6, 7], name_col=2, dropped=[5],
          title="AY_2023_24_Sem_II_Summative"),
-    dict(sheet="2024-25 Sem-I Formative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
+    dict(desig=True, sheet="2024-25 Sem-I Formative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
          rows=(1, 71), cols=[1, 2, 3, 4, 6], name_col=2, dropped=[5],
          title="AY_2024_25_Sem_I_Formative"),
-    dict(sheet="Sem-I Summative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
+    dict(desig=True, sheet="Sem-I Summative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
          rows=(1, 70), cols=[2, 3, 4, 6], name_col=2, dropped=[1, 5],
          title="AY_2024_25_Sem_I_Summative"),
-    dict(sheet="Sem-II Formative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
+    dict(desig=True, sheet="Sem-II Formative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
          rows=(1, 133), cols=[1, 2, 3, 4, 5, 6], name_col=2, dropped=[],
          title="AY_2024_25_Sem_II_Formative"),
-    dict(sheet="Sem-II Summative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
+    dict(desig=True, sheet="Sem-II Summative", src="SY A 24-25 ODD (2).xlsx", out="SY A 24-25 ODD (2)_Formatted.xlsx",
          rows=(5, 137), cols=[1, 2, 3, 4], name_col=1, dropped=[],
          title="AY_2024_25_Sem_II_Summative"),
 ]
@@ -71,12 +72,14 @@ def main():
         r0, r1 = p["rows"]
         original = [[src_ws.cell(row=r, column=c).value for c in p["cols"]]
                     for r in range(r0, r1 + 1)]
-        i_name = p["cols"].index(p["name_col"])         # 0-based, before injection
-        ncols = len(p["cols"]) + 1                      # + the Designation column
+        ncols = len(p["cols"]) + (1 if p["desig"] else 0)   # + Designation column
         got_rows = [[out_ws.cell(row=5 + i, column=1 + j).value for j in range(ncols)]
                     for i in range(len(original))]
-        # strip the injected Designation column (0-based i_name + 1) back out
-        got = [row[:i_name + 1] + row[i_name + 2:] for row in got_rows]
+        got = got_rows
+        if p["desig"]:
+            # strip the injected Designation column (0-based i_name + 1) back out
+            i_name = p["cols"].index(p["name_col"])
+            got = [row[:i_name + 1] + row[i_name + 2:] for row in got_rows]
         check(len(original) == len(got), "%s: %d rows" % (p["sheet"], len(got)))
         bad = [(i, j, original[i][j], got[i][j])
                for i in range(min(len(original), len(got)))
@@ -100,6 +103,8 @@ def main():
 
     print("\n[3] designations: filled only from the source, nothing invented")
     for p in PLAN:
+        if not p["desig"]:
+            continue
         out_ws = openpyxl.load_workbook(os.path.join(HERE, p["out"]))[p["sheet"]]
         i_name = p["cols"].index(p["name_col"])
         name_col_1 = i_name + 1                          # 1-based
@@ -117,6 +122,28 @@ def main():
         check(not wrong, "%s: designation column correct for all rows %s" % (p["sheet"], dict(seen)))
         for w in wrong[:5]:
             print("        ", w)
+
+    print("\n[3b] the 2023-24 file has no Designation column at all")
+    for p in PLAN:
+        if p["desig"]:
+            continue
+        out_ws = openpyxl.load_workbook(os.path.join(HERE, p["out"]))[p["sheet"]]
+        labels = [out_ws.cell(row=4, column=c).value
+                  for c in range(1, out_ws.max_column + 1)]
+        check("Designation" not in labels, "%s: header row has no Designation label %s"
+              % (p["sheet"], labels))
+        check(out_ws.max_column == len(p["cols"]),
+              "%s: %d columns, matching the %d kept from the source"
+              % (p["sheet"], out_ws.max_column, len(p["cols"])))
+        # nothing designation-shaped survived in any row
+        stray = [(c.coordinate, c.value) for row in out_ws.iter_rows() for c in row
+                 if isinstance(c.value, str)
+                 and c.value.strip() in ("Assistant Professor", "Associate Professor",
+                                         "Professor")]
+        check(not stray, "%s: no designation text left anywhere (%d found)"
+              % (p["sheet"], len(stray)))
+        for x in stray[:5]:
+            print("        ", x)
 
     print("\n[4] no highlighting left anywhere")
     for out in sorted({p["out"] for p in PLAN}):
@@ -143,7 +170,7 @@ def main():
     )
     for p in PLAN:
         ws = openpyxl.load_workbook(os.path.join(HERE, p["out"]))[p["sheet"]]
-        ncols = len(p["cols"]) + 1                       # table width (extras aside)
+        ncols = len(p["cols"]) + (1 if p["desig"] else 0)   # table width (extras aside)
         nrows = p["rows"][1] - p["rows"][0] + 1
         check(ws["A1"].value == m["A1"].value and ws["A2"].value == m["A2"].value,
               "%s: college / department rows" % p["sheet"])
@@ -204,17 +231,26 @@ def main():
     for p in PLAN:
         ws = openpyxl.load_workbook(os.path.join(HERE, p["out"]))[p["sheet"]]
         nrows = p["rows"][1] - p["rows"][0] + 1
+        ncols = len(p["cols"]) + (1 if p["desig"] else 0)   # the table itself
         over = []
-        for c in range(1, len(p["cols"]) + 2):
+        for c in range(1, ws.max_column + 1):
             width = ws.column_dimensions[openpyxl.utils.get_column_letter(c)].width or 9.0
             avail = width * PX_PER_CHAR + 5
             longest = 0
             for r in range(4, 5 + nrows):
                 v = ws.cell(r, c).value
-                if v is not None:
-                    longest = max(longest, (fb12 if r == 4 else f12).getlength(str(v)))
+                if v is None:
+                    continue
+                if isinstance(v, str) and v.startswith("="):
+                    continue          # a formula renders as its result, not its text
+                longest = max(longest, (fb12 if r == 4 else f12).getlength(str(v)))
             need = longest * GLYPH_FACTOR + CELL_PADDING
-            if need > avail + 0.5 or avail - need > 45:
+            clipped = need > avail + 0.5
+            # "wastefully wide" only matters for the table's own columns; a
+            # column outside it (e.g. the one holding the two formulas) keeps
+            # the default width and is only checked for clipping
+            wasteful = c <= ncols and avail - need > 45
+            if clipped or wasteful:
                 over.append((openpyxl.utils.get_column_letter(c), round(need), round(avail)))
         check(not over, "%s: column widths fit %s" % (p["sheet"], over))
 
